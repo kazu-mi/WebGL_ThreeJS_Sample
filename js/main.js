@@ -6,6 +6,7 @@ var isShowDetailBlock = false;
 
 var main = function(global) {
 	window.detailBlock = [];
+	window.maleModel = null;
 
 	scene = new THREE.Scene();
 	raycaster = new THREE.Raycaster()
@@ -19,12 +20,24 @@ var main = function(global) {
 	camera	= new THREE.PerspectiveCamera( fov, aspect, near, far );
 
 	// カメラの位置を設定
-	camera.position.set( 0, 0, 100 );
+	camera.position.set( 0, 0, 120 );
 
 	// ページにレンダラーを追加する
 	var renderer = new THREE.WebGLRenderer();
+	renderer.setClearColor( 0xffffff, 1 );
 	renderer.setSize( width, height );
 	document.body.appendChild( renderer.domElement );
+
+	// カメラを移動できるようにコントローラーを追加する
+	var controls = new THREE.OrbitControls( camera, renderer.domElement );
+	controls.enableDamping = true;
+	controls.dampingFactor = 0.5;
+	controls.enablePan = true;
+	controls.enableZoom = true;
+	controls.minDistance = 50.0;
+	controls.maxDistance = 200.0;
+	controls.target.set( 0, 0, 0 );
+	controls.maxPolarAngle = Math.PI * 0.5;
 
 	// 光源を追加する
 	var directionalLight = new THREE.DirectionalLight( 0xffffff );
@@ -32,8 +45,12 @@ var main = function(global) {
 	scene.add( directionalLight );
 
 	// 描画するボックスを生成
-	centerBlock = new Block(30, 30, 30, 0xff0000);
+	centerBlock = new Block(20, 20, 20, 0xff0000);
+	centerBlock.setPosition(0, -55, 0);
 	scene.add( centerBlock.mesh );
+
+	// 描画するモデルを読み込み
+	window.maleModel = new Model3D("obj/male.obj", null);
 
 	var isScaleBig = true;
 
@@ -55,17 +72,8 @@ var main = function(global) {
 			}
 		}
 
-		/*centerBoxMesh.scale.set(
-			centerBoxMesh.scale.x + ( isScaleBig ? 0.01 : -0.01 ),
-			centerBoxMesh.scale.y + ( isScaleBig ? 0.01 : -0.01 ),
-			centerBoxMesh.scale.z + ( isScaleBig ? 0.01 : -0.01 )
-		);
-		if (centerBoxMesh.scale.x >= 1.25) {
-			isScaleBig = false;
-		}
-		if (centerBoxMesh.scale.x <= 0.75) {
-			isScaleBig = true;
-		}*/
+		window.maleModel.animation();
+
 		// 描画
 		renderer.render( scene, camera );
 	} )();
@@ -103,12 +111,7 @@ window.onmouseup = function(event) {
 				0xffff00,
 				0x00ffff,
 			];
-			/*var position = [
-				new THREE.Vector3(-10, 10, 10),	// 左上
-				new THREE.Vector3(10, 10, -10),	// 右上
-				new THREE.Vector3(-10, -10, -10), // 左下
-				new THREE.Vector3(10, -10, 10),	// 右下
-			];*/
+			
 			var fixedPosition = [
 				new THREE.Vector3(-30, 30, 30),		// 左上
 				new THREE.Vector3(30, 30, -30),		// 右上
@@ -123,7 +126,6 @@ window.onmouseup = function(event) {
 			];
 			for (var i = 0; i < 4; i++) {
 				window.detailBlock[i] = new Block(20, 20, 20, color[i]);
-				//window.detailBlock[i].setPosition(position[i].x, position[i].y, position[i].z);
 				window.detailBlock[i].setPosition(0, 0, 0);
 				window.detailBlock[i].setFixedPosition(fixedPosition[i]);
 				window.detailBlock[i].setMovingDirection(movingDirection[i]);
@@ -132,6 +134,15 @@ window.onmouseup = function(event) {
 
 			window.detailBlock[0].tapAction = function() {
 				window.open('https://www.google.co.jp/search?rls=en&q=Three.js&ie=UTF-8&oe=UTF-8&gfe_rd=cr&ei=EU-nV5m5GYaL8QftzqeYCw#safe=off&q=Three.js');
+			}
+			window.detailBlock[1].tapAction = function() {
+				swal("タイトル", "オッケーです。", "success");
+			}
+			window.detailBlock[2].tapAction = function() {
+				window.maleModel.startRotate();
+			}
+			window.detailBlock[3].tapAction = function() {
+				window.maleModel.stopRotate();
 			}
 		}
 
@@ -150,6 +161,7 @@ window.onmouseup = function(event) {
 			for (var j = 0; j < detailMesh.length; j++) {
 				if (obj[i].object.uuid === detailMesh[j].uuid) {
 					window.detailBlock[j].tapAction();
+					return true;
 				}
 			}
 		}
@@ -359,5 +371,79 @@ class Block {
 			this._rotationX = -this._rotationX;
 			this._rotationY = -this._rotationY;
 		}
+	}
+}
+
+/**
+ * 3Dモデルクラス
+ */
+class Model3D {
+	constructor(modelPath, materialPath) {
+		this.loadManager = new THREE.LoadingManager();
+		this.loadManager.onProgress = this.onLoadingProgress;
+		this.loadManager.onError = this.onLoadingError;
+		
+		this.objLoader = new THREE.OBJLoader( this.loadManager );
+		var that = this;
+		this.objLoader.load(modelPath, function(model) {
+			that._isLoaded = true;
+			that._model = model;
+			model.scale.set(4, 4, 4);
+			model.position.y -= 40;
+
+			var obj = new THREE.Object3D();
+			obj.add(model);
+			scene.add(obj);
+
+		} );
+
+		this._isRotate = false;
+		this._isLoaded = false;
+	}
+
+	/**
+	 * モデル読み込み処理
+	 */
+	onLoadingProgress( xhr ) {
+		if ( xhr.lengthComputable ) {
+			var percentComplete = xhr.loaded / xhr.total * 100;
+			console.log( Math.round(percentComplete, 2) + "% downloaded" );
+		}
+	}
+
+	/**
+	 * モデル読み込み失敗
+	 */
+	onLoadingError() {
+		swal("Failed", "3Dオブジェクト読み込み失敗", "error");
+	}
+
+	/**
+	 * アニメーション表示
+	 */
+	animation() {
+		if ( this._isLoaded && this._isRotate ) {
+			this._model.rotation.set(
+				this._model.rotation.x,
+				this._model.rotation.y + 0.05,
+				this._model.rotation.z
+			);
+		}
+	}
+
+	startRotate() {
+		this._isRotate = true;
+	}
+
+	stopRotate() {
+		this._isRotate = false;
+	}
+
+	set isLoaded(loaded) {
+		this._isLoaded = loaded;
+	}
+
+	get isLoaded() {
+		return this._isLoaded;
 	}
 }
