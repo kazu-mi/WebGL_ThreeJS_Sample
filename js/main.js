@@ -54,6 +54,24 @@ var main = function(global) {
 
 	var isScaleBig = true;
 
+	var color = [
+		0x00ff00,
+		0x0000ff,
+		0xffff00,
+		0x00ffff,
+	];		
+	var fixedPosition = [
+		new THREE.Vector3(-30, 30, 30),		// 左上
+		new THREE.Vector3(30, 30, -30),		// 右上
+		new THREE.Vector3(-30, -30, -30), 	// 左下
+		new THREE.Vector3(30, -30, 30),		// 右下
+	];		
+	for (var i = 0; i < 4; i++) {
+		window.detailBlock[i] = new Block(20, 20, 20, color[i]);
+		window.detailBlock[i].setPosition(0, 0, 0);
+		window.detailBlock[i].setFixedPosition(fixedPosition[i]);
+	}
+
 	// 描画ループ
 	( function renderLoop () {
 		requestAnimationFrame( renderLoop );
@@ -103,34 +121,12 @@ window.onmouseup = function(event) {
 	var obj = raycaster.intersectObjects([centerBlock.mesh]);
 
 	if (obj.length > 0) {
+		for (var i = 0; i < 4; i++) {
+			window.detailBlock[i].toggle();
+		}
+
 		if (isShowDetailBlock == false) {
 			isShowDetailBlock = true;
-			var color = [
-				0x00ff00,
-				0x0000ff,
-				0xffff00,
-				0x00ffff,
-			];
-			
-			var fixedPosition = [
-				new THREE.Vector3(-30, 30, 30),		// 左上
-				new THREE.Vector3(30, 30, -30),		// 右上
-				new THREE.Vector3(-30, -30, -30), 	// 左下
-				new THREE.Vector3(30, -30, 30),		// 右下
-			];
-			var movingDirection = [
-				new THREE.Vector3(-0.4, 0.4, 0.4),
-				new THREE.Vector3(0.4, 0.4, -0.4),
-				new THREE.Vector3(-0.4, -0.4, -0.4),
-				new THREE.Vector3(0.4, -0.4, 0.4),	
-			];
-			for (var i = 0; i < 4; i++) {
-				window.detailBlock[i] = new Block(20, 20, 20, color[i]);
-				window.detailBlock[i].setPosition(0, 0, 0);
-				window.detailBlock[i].setFixedPosition(fixedPosition[i]);
-				window.detailBlock[i].setMovingDirection(movingDirection[i]);
-				window.detailBlock[i].show();
-			}
 
 			window.detailBlock[0].tapAction = function() {
 				window.open('https://www.google.co.jp/search?rls=en&q=Three.js&ie=UTF-8&oe=UTF-8&gfe_rd=cr&ei=EU-nV5m5GYaL8QftzqeYCw#safe=off&q=Three.js');
@@ -232,10 +228,9 @@ class Block {
 
 		this.Status = {
 			Hide : 0,
-			Show : 1,
-			MovingToShow : 2,
-			MovingToHide : 3,
-			Stay : 4,
+			MovingToShow : 1,
+			MovingToHide : 2,
+			Stay : 3,
 		};
 		this._status = this.Status.Hide;
 
@@ -296,21 +291,17 @@ class Block {
 			break;
 
 		case this.Status.MovingToShow:
-			this.mesh.position.add(this._movingDirection);
 			this._position = this.mesh.position;
-			if (   this._position.x - this._fixedPosition.x < 0.1
+			/*if (   this._position.x - this._fixedPosition.x < 0.1
 				&& this._position.y - this._fixedPosition.y < 0.1
 				&& this._position.z - this._fixedPosition.z < 0.1 ) {
 				this.setPosition(this._fixedPosition.x, this._fixedPosition.y, this._fixedPosition.z);
 				this._status = this.Status.Show;
-			}
-			break;
-
-		case this.Status.Show:
-			this._status = this.Status.Stay;
+			}*/
 			break;
 
 		case this.Status.MovingToHide:
+			this._position = this.mesh.position;
 			break;
 
 		case this.Status.Stay:
@@ -339,10 +330,25 @@ class Block {
 	}
 
 	/**
+	 * 表示切り替え
+	 **/
+	toggle() {
+		if ( this._status == this.Status.Hide ) {
+			this.show();
+		} else if ( this._status == this.Status.Stay ) {
+			this.hide();
+		}
+	}
+
+	/**
 	 * 表示
 	 */
 	show() {
 		this._status = this.Status.MovingToShow;
+		var that = this;
+		createjs.Tween.get(this._mesh.position)
+		.to({x: this._fixedPosition.x, y:this._fixedPosition.y, z:this._fixedPosition.z}, 2000, createjs.Ease.elasticOut)
+		.call(function(){ that._status = that.Status.Stay });
 		scene.add(this._mesh);
 	}
 
@@ -351,6 +357,13 @@ class Block {
 	 */
 	hide() {
 		this._status = this.Status.MovingToHide;
+		var that = this;
+		createjs.Tween.get(this._mesh.position)
+		.to({x: 0, y: 0, z: 0}, 1000, createjs.Ease.quadraticIn)
+		.call(function(){ 
+			that._status = that.Status.Hide;
+			scene.remove(that._mesh);
+		});
 	}
 
 	/**
