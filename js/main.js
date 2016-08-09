@@ -26,7 +26,7 @@ var main = function(global) {
 	var renderer = new THREE.WebGLRenderer();
 	renderer.setClearColor( 0xffffff, 1 );
 	renderer.setSize( width, height );
-	document.body.appendChild( renderer.domElement );
+	document.getElementById("content").appendChild( renderer.domElement );
 
 	// カメラを移動できるようにコントローラーを追加する
 	var controls = new THREE.OrbitControls( camera, renderer.domElement );
